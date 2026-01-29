@@ -37,7 +37,7 @@ Gem::Specification.new do |spec|
 
   # Optional dependencies (for enhanced features)
   # Users can add red-candle if they want LLM-powered labeling
-  spec.add_development_dependency "red-candle", ">= 1.2"
+  spec.add_development_dependency "red-candle", ">= 1.4"
 
   # Development dependencies
   spec.add_development_dependency "rspec", "~> 3.0"
