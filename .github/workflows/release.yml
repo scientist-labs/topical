@@ -1,60 +1,50 @@
 name: Release
 
+# Adopts scientist-labs/rust-gem-release@0.11.0 as the org-standard publish workflow
+# for this PURE-RUBY gem: the three native build legs are OFF, so only the Rust-free
+# source-gem job runs (gem build + gem push + GitHub Release, all on ubuntu-24.04).
+# Three ways to release, all from this one file:
+#   1. CLI ......... bump version.rb, commit, `git tag X && git push --tags`
+#   2. version box . Actions -> Run workflow -> type a version (+ check publish)
+#   3. dry-run ..... Run workflow with version blank -> builds the gem, no publish
+# Replaces the previous hand-rolled release workflow.
+
 on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+.*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+.*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g. 1.0.0)"
-        required: true
+        description: "Version to cut + release, e.g. 0.2.0 (blank = build-only dry-run)"
         type: string
+        default: ""
+      publish:
+        description: "Push to RubyGems (leave false for a dry-run)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-
-      - name: Update version
-        run: |
-          VERSION="${{ inputs.version }}"
-          sed -i "s/VERSION = \".*\"/VERSION = \"$VERSION\"/" lib/topical/version.rb
-          echo "Updated version to $VERSION"
-          cat lib/topical/version.rb
-
-      - name: Commit and tag
-        run: |
-          VERSION="${{ inputs.version }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add lib/topical/version.rb
-          git commit -m "Release v$VERSION"
-          git tag "$VERSION"
-          git push origin HEAD:${{ github.ref_name }} --tags
-
-      - name: Build gem
-        run: gem build topical.gemspec
-
-      - name: Push to RubyGems
-        run: |
-          mkdir -p ~/.gem
-          echo "---" > ~/.gem/credentials
-          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" >> ~/.gem/credentials
-          chmod 0600 ~/.gem/credentials
-          gem push topical-*.gem
-
-      - name: Create GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION="${{ inputs.version }}"
-          gh release create "$VERSION" \
-            --title "v$VERSION" \
-            --generate-notes \
-            topical-*.gem
+    uses: scientist-labs/rust-gem-release/.github/workflows/release.yml@0.11.0
+    with:
+      gem-name: topical
+      gemspec: topical.gemspec
+      version-command: ruby -r./lib/topical/version -e 'print Topical::VERSION'
+      # the "type a version in a box" path ($VERSION is exported by the reusable
+      # workflow; pass it through literally, NOT via ${{ }}).
+      version: ${{ inputs.version }}
+      bump-command: |
+        sed -i 's/^\( *VERSION *= *\).*/\1"'"$VERSION"'"/' lib/topical/version.rb
+      build-darwin: false
+      build-x86_64-linux: false
+      build-aarch64-linux: false
+      publish: ${{ github.event_name == 'push' || inputs.publish }}
+    secrets:
+      rubygems-api-key: ${{ secrets.RUBYGEMS_API_KEY }}
