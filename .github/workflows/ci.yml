@@ -4,7 +4,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+
+      - name: Install OpenBLAS system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libopenblas-dev liblapack-dev gfortran
+
       - uses: actions/cache@v5
         with:
           path: |
